@@ -212,6 +212,7 @@ void CodechalDebugConfigMgr::GenerateDefaultConfig()
 
     ofs << "#" << CodechalDbgAttr::attrPicParams <<":0"<< std::endl;
     ofs << "#" << CodechalDbgAttr::attrSlcParams << ":0" << std::endl;
+    ofs << "#" << CodechalDbgAttr::attrSubsetsParams << ":0" << std::endl;
     ofs << "#" << CodechalDbgAttr::attrIqParams << ":0" << std::endl;
     ofs << "#" << CodechalDbgAttr::attrBitstream << ":0" << std::endl;
     ofs << "#" << CodechalDbgAttr::attrHucRegions << ":0" << std::endl;
@@ -255,6 +256,7 @@ void CodechalDebugConfigMgr::GenerateDefaultConfig()
     ofs << "##" << CodechalDbgAttr::attrSliceSizeStreamout << ":0" << std::endl;
     ofs << "##" << CodechalDbgAttr::attrCoeffProb << ":0" << std::endl;
     ofs << "##" << CodechalDbgAttr::attrROISurface << ":0" << std::endl;
+    ofs << "##" << CodechalDbgAttr::attrHuCStitchDataBuf << ":0" << std::endl;
     
    // MD5 attributes
     ofs << "##" << CodechalDbgAttr::attrMD5HashEnable << ":0" << std::endl;

@@ -912,10 +912,9 @@ MOS_STATUS CodechalEncodeHevcBase::SetSequenceStructs()
 
     if (m_brcReset &&
         (!m_brcEnabled ||
-            m_hevcSeqParams->RateControlMethod == RATECONTROL_CBR ||
             m_hevcSeqParams->RateControlMethod == RATECONTROL_ICQ))
     {
-        CODECHAL_ENCODE_ASSERTMESSAGE("BRC Reset cannot be trigerred in CQP/CBR/ICQ modes - invalid BRC parameters.");
+        CODECHAL_ENCODE_ASSERTMESSAGE("BRC Reset cannot be trigerred in CQP/ICQ modes - invalid BRC parameters.");
         m_brcReset = false;
     }
 
@@ -1788,35 +1787,6 @@ MOS_STATUS CodechalEncodeHevcBase::SendHWWaitCommand(
     miSemaphoreWaitParams.CompareOperation = MHW_MI_SAD_EQUAL_SDD;
 
     CODECHAL_ENCODE_CHK_STATUS_RETURN(m_miInterface->AddMiSemaphoreWaitCmd(cmdBuffer, &miSemaphoreWaitParams));
-
-    return eStatus;
-}
-
-MOS_STATUS CodechalEncodeHevcBase::SendWatchdogTimerStartCmd(
-    PMOS_COMMAND_BUFFER                 cmdBuffer)
-{
-    MmioRegistersHcp                    *mmioRegisters;
-    MHW_MI_LOAD_REGISTER_IMM_PARAMS     registerImmParams;
-    MOS_STATUS                          eStatus = MOS_STATUS_SUCCESS;
-
-    CODECHAL_ENCODE_FUNCTION_ENTER;
-
-    mmioRegisters      = m_hcpInterface->GetMmioRegisters(m_vdboxIndex);
-
-    //Configure Watchdog timer Threshold
-    MOS_ZeroMemory(&registerImmParams, sizeof(registerImmParams));
-    registerImmParams.dwData      = m_hcpInterface->GetTimeStampCountsPerMillisecond() * m_hcpInterface->GetWatchDogTimerThrehold();
-    registerImmParams.dwRegister  = mmioRegisters->watchdogCountThresholdOffset;
-    CODECHAL_ENCODE_CHK_STATUS_RETURN(m_miInterface->AddMiLoadRegisterImmCmd(
-        cmdBuffer,
-        &registerImmParams));
-
-    //Start Watchdog Timer
-    registerImmParams.dwData        = 0;
-    registerImmParams.dwRegister    = mmioRegisters->watchdogCountCtrlOffset;
-    CODECHAL_ENCODE_CHK_STATUS_RETURN(m_miInterface->AddMiLoadRegisterImmCmd(
-        cmdBuffer,
-        &registerImmParams));
 
     return eStatus;
 }

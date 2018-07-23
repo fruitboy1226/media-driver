@@ -223,7 +223,7 @@ typedef enum _CM_RETURN_CODE
 #define CM_HAL_MAX_NUM_2D_ALIASES           10                                  // maximum number of aliases for one 2D surface. Arbitrary - can be increased
 #define CM_HAL_MAX_NUM_BUFFER_ALIASES       10                                  // maximum number of aliases for one Buffer. Arbitrary - can be increased
 
-#define CM_MAX_SIP_SIZE                     0x2000                              // 8k system routine size
+#define CM_MAX_SIP_SIZE                     0x4000                              // 16k system routine size
 #define CM_DEBUG_SURFACE_INDEX              252                                 // reserved for tools
 #define CM_DEBUG_SURFACE_SIZE               0x10000                             // 64k for all threads
 #define CM_CSR_SURFACE_SIZE                 0x800000                            // 8 M Bytes for CSR surface
@@ -606,6 +606,21 @@ typedef enum _CM_HAL_MEMORY_OBJECT_CONTROL_G9
     CM_MEMORY_OBJECT_CONTROL_SKL_NO_ELLC_L3  = 0x6,
     CM_MEMORY_OBJECT_CONTROL_SKL_NO_CACHE    = 0x7
 }CM_HAL_MEMORY_OBJECT_CONTROL_G9;
+
+// Unified  CM_MEMORY_OBJECT_CONTROL enumeration
+typedef enum _CM_HAL_MEMORY_OBJECT_CONTROL
+{
+    CM_MEMORY_OBJECT_CONTROL_DEFAULT          = 0x0,
+    CM_MEMORY_OBJECT_CONTROL_NO_L3            = 0x1,
+    CM_MEMORY_OBJECT_CONTROL_NO_LLC_ELLC      = 0x2,
+    CM_MEMORY_OBJECT_CONTROL_NO_LLC           = 0x3,
+    CM_MEMORY_OBJECT_CONTROL_NO_ELLC          = 0x4,
+    CM_MEMORY_OBJECT_CONTROL_NO_LLC_L3        = 0x5,
+    CM_MEMORY_OBJECT_CONTROL_NO_ELLC_L3       = 0x6,
+    CM_MEMORY_OBJECT_CONTROL_NO_CACHE         = 0x7,
+    CM_MEMORY_OBJECT_CONTROL_L1_ENABLED       = 0x8
+}CM_HAL_MEMORY_OBJECT_CONTROL;
+
 
 typedef struct _CM_POWER_OPTION
 {

@@ -318,9 +318,9 @@ extern const MHW_SURFACE_PLANES g_cRenderHal_SurfacePlanes[RENDERHAL_PLANES_DEFI
     // RENDERHAL_PLANES_RGBP
     {   3,
         {
-            { MHW_Y_PLANE      , 1, 1, 1, 1, 4, 0, MHW_GFX3DSTATE_SURFACEFORMAT_R8_UNORM },
             { MHW_U_PLANE      , 1, 1, 1, 1, 4, 0, MHW_GFX3DSTATE_SURFACEFORMAT_R8_UNORM },
-            { MHW_V_PLANE      , 1, 1, 1, 1, 4, 0, MHW_GFX3DSTATE_SURFACEFORMAT_R8_UNORM }
+            { MHW_V_PLANE      , 1, 1, 1, 1, 4, 0, MHW_GFX3DSTATE_SURFACEFORMAT_R8_UNORM },
+            { MHW_Y_PLANE      , 1, 1, 1, 1, 4, 0, MHW_GFX3DSTATE_SURFACEFORMAT_R8_UNORM }
         }
     },
     // RENDERHAL_PLANES_BGRP
@@ -3515,6 +3515,7 @@ MOS_STATUS RenderHal_GetSurfaceStateEntries(
                 break;
 
             case Format_R8U:
+            case Format_R8UN:
                 PlaneDefinition = RENDERHAL_PLANES_R8;
                 break;
 
@@ -6700,6 +6701,9 @@ MOS_STATUS RenderHal_InitInterface(
 
     // Set default / advanced surface types
     pRenderHal->pRenderHalPltInterface->InitSurfaceTypes(pRenderHal);
+
+    // Set MMC Enabled status
+    pRenderHal->pRenderHalPltInterface->IsRenderHalMMCEnabled(pRenderHal);
 
     // Set platform dependent parameters
     pRenderHal->bHasCombinedAVSSamplerState   = true;

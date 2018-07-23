@@ -354,8 +354,10 @@ public:
     uint32_t                    m_vdencBatchBuffer1stGroupSize = 0;             //!> vdenc batch buffer 1st group size
     uint32_t                    m_vdencBatchBuffer2ndGroupSize = 0;             //!> vdenc batch buffer 2nd group size
     uint32_t                    m_vdencReadBatchBufferSize = 0;                 //!> vdenc read batch buffer size
+    uint32_t                    m_vdencCopyBatchBufferSize = 0;                 //!> vdenc copy batch buffer size
     uint32_t                    m_vdenc2ndLevelBatchBufferSize = 0;             //!> vdenc 2nd level batch buffer size
     uint32_t                    m_vdencBatchBufferPerSliceConstSize = 0;        //!> vdenc batch buffer per slice const size
+    uint32_t                    m_HucStitchCmdBatchBufferSize = 0;              //!> huc stitch cmd 2nd level batch buffer size
     uint32_t                    m_mpeg2BrcConstantSurfaceWidth = 64;            //!> mpeg2 brc constant surface width
     uint32_t                    m_mpeg2BrcConstantSurfaceHeight = 43;           //!> mpeg2 brc constant surface height
     uint32_t                    m_avcMbStatBufferSize = 0;                      //!> AVC Mb status buffer size

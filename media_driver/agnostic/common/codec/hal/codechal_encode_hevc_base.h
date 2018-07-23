@@ -43,6 +43,8 @@
 #define CODECHAL_HEVC_MIN_LCU_SIZE             16
 #define CODECHAL_HEVC_MIN_CU_SIZE              8
 #define CODECHAL_HEVC_MIN_TILE_SIZE            128
+#define CODECHAL_HEVC_VDENC_MIN_TILE_WIDTH_SIZE      256
+#define CODECHAL_HEVC_VDENC_MIN_TILE_HEIGHT_SIZE     128
 #define CODECHAL_HEVC_FRAME_BRC_BLOCK_SIZE     32
 #define CODECHAL_HEVC_LCU_BRC_BLOCK_SIZE       128
 
@@ -1650,18 +1652,6 @@ public:
         PMOS_RESOURCE semaphoreMem,
         PMOS_COMMAND_BUFFER cmdBuffer,
         uint32_t semValue);
-
-    //!
-    //! \brief      Send watchdog timer start command
-    //!
-    //! \param    [in] cmdBuffer
-    //!           Pointer to command buffer
-    //!
-    //! \return   MOS_STATUS
-    //!           MOS_STATUS_SUCCESS if success, else fail reason
-    //!
-    virtual MOS_STATUS SendWatchdogTimerStartCmd(
-        PMOS_COMMAND_BUFFER cmdBuffer);
 
     //!
     //! \brief      Send MI atomic command

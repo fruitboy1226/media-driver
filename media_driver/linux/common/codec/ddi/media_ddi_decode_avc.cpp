@@ -323,14 +323,16 @@ VAStatus DdiDecodeAVC::ParseIQMatrix(
     int32_t i;
     for (i = 0; i < 6; i++)
     {
-        memcpy(avcIqMatrix->ScalingList4x4[i],
+        memcpy_s(avcIqMatrix->ScalingList4x4[i],
+            16,
             matrix->ScalingList4x4[i],
             16);
     }
     // 8x8 block
     for (i = 0; i < 2; i++)
     {
-        memcpy(avcIqMatrix->ScalingList8x8[i],
+        memcpy_s(avcIqMatrix->ScalingList8x8[i],
+            64,
             matrix->ScalingList8x8[i],
             64);
     }
@@ -564,7 +566,7 @@ VAStatus DdiDecodeAVC::CodecHalInit(
     MOS_CONTEXT *mosCtx = (MOS_CONTEXT *)ptr;
 
     CODECHAL_FUNCTION codecFunction = CODECHAL_FUNCTION_DECODE;
-    m_ddiDecodeCtx->pCpDdiInterface->SetEncryptionType(m_ddiDecodeAttr->uiEncryptionType, &codecFunction);
+    m_ddiDecodeCtx->pCpDdiInterface->SetCpParams(m_ddiDecodeAttr->uiEncryptionType, m_codechalSettings);
 
     CODECHAL_STANDARD_INFO standardInfo;
     memset(&standardInfo, 0, sizeof(standardInfo));

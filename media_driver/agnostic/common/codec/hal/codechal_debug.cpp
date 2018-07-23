@@ -514,7 +514,7 @@ MOS_STATUS CodechalDebugInterface::DumpYUVSurface(
         height /= 2;
     }
 
-    const char *funcName = m_codecFunction == CODECHAL_FUNCTION_DECODE ? "_DEC" : "_ENC";
+    const char *funcName = (m_codecFunction == CODECHAL_FUNCTION_DECODE) ? "_DEC" :(m_codecFunction == CODECHAL_FUNCTION_CENC_DECODE ? "_DEC" : "_ENC");
     std::string bufName  = std::string(surfName) + "_w[" + std::to_string(surface->dwWidth) + "]_h[" + std::to_string(surface->dwHeight) + "]_p[" + std::to_string(pitch) + "]";
 
     const char *filePath = CreateFileName(funcName, bufName.c_str(), CodechalDbgExtType::yuv);
@@ -561,7 +561,11 @@ MOS_STATUS CodechalDebugInterface::DumpYUVSurface(
         break;
     }
 
+#ifdef LINUX
+    data = surfBaseAddr + surface->UPlaneOffset.iSurfaceOffset;
+#else
     data = surfBaseAddr + surface->UPlaneOffset.iLockSurfaceOffset;
+#endif
 
     // write chroma data to file
     for (uint32_t h = 0; h < height; h++)

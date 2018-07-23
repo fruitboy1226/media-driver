@@ -48,7 +48,7 @@ public:
     //! \brief  Create Cenc Decode
     //! \return MOS_STATUS
     //!
-    static MOS_STATUS CreateCencDecode(
+    static MOS_STATUS Create(
         CODECHAL_STANDARD           standard,
         CodechalCencDecode          **cencDecoder)
     {
@@ -61,7 +61,7 @@ public:
     //! \return MOS_STATUS_UNIMPLEMENTED
     //!
     MOS_STATUS Initialize(
-        CodechalDecode               *decoder,
+        CodechalDebugInterface      *debugInterface,
         PMOS_CONTEXT                 osContext,
         CodechalSetting              *settings)
     {
@@ -116,19 +116,11 @@ public:
         return MOS_STATUS_UNIMPLEMENTED;
     };
 
-    //!
-    //! \brief  Check Status Report Num
-    //! \return MOS_STATUS_UNIMPLEMENTED
-    //!
-    MOS_STATUS CheckStatusReportNum(
-        void                         *state,
-        PMOS_COMMAND_BUFFER          cmdBuffer,
-        MHW_VDBOX_NODE_IND           vdboxIndex)
-    {
-        return MOS_STATUS_UNIMPLEMENTED;
-    };
+    PMOS_RESOURCE GetStatusReportResource() { return nullptr; }
 
-    PMOS_INTERFACE                  osInterface = nullptr;
+    bool IsCheckStatusReportNeeded() { return false; }
+
+    PMOS_INTERFACE                  m_osInterface = nullptr;
 
 protected:
 

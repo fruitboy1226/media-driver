@@ -3904,7 +3904,7 @@ MOS_STATUS CodechalEncHevcStateG9::AllocateEncResources()
         height,
         "Simplest Intra surface"));
 
-    m_allocator->AllocateResource(m_standard, 1024, 1, brcInputForEncKernel, true);
+    m_allocator->AllocateResource(m_standard, 1024, 1, brcInputForEncKernel, "brcInputForEncKernel", true);
 
     if (m_hmeKernel && m_hmeSupported)
     {
@@ -4245,17 +4245,40 @@ MOS_STATUS CodechalEncHevcStateG9::SendMeSurfaces(
             uint8_t scaledIdx = params->ppRefList[refPicIdx]->ucScalingIdx;
             if (params->b32xMeInUse)
             {
-                refScaledSurface.OsResource = m_trackedBuf->Get32xDsSurface(scaledIdx)->OsResource;
+                MOS_SURFACE* p32xSurface = m_trackedBuf->Get32xDsSurface(scaledIdx);
+                if (p32xSurface != nullptr)
+                {
+                    refScaledSurface.OsResource = p32xSurface->OsResource;
+                }
+                else
+                {
+                    CODECHAL_ENCODE_ASSERTMESSAGE("NULL pointer of DsSurface");
+                }
             }
             else if (params->b16xMeInUse)
             {
-                refScaledSurface.OsResource = m_trackedBuf->Get16xDsSurface(scaledIdx)->OsResource;
+                MOS_SURFACE* p16xSurface = m_trackedBuf->Get16xDsSurface(scaledIdx);
+                if (p16xSurface != nullptr)
+                {
+                    refScaledSurface.OsResource = p16xSurface->OsResource;
+                }
+                else
+                {
+                    CODECHAL_ENCODE_ASSERTMESSAGE("NULL pointer of DsSurface");
+                }
             }
             else
             {
-                refScaledSurface.OsResource = m_trackedBuf->Get4xDsSurface(scaledIdx)->OsResource;
+                MOS_SURFACE* p4xSurface = m_trackedBuf->Get4xDsSurface(scaledIdx);
+                if (p4xSurface != nullptr)
+                {
+                    refScaledSurface.OsResource = p4xSurface->OsResource;
+                }
+                else
+                {
+                    CODECHAL_ENCODE_ASSERTMESSAGE("NULL pointer of DsSurface");
+                }
             }
-
             // L0 Reference picture Y - VME
             MOS_ZeroMemory(&surfaceParams, sizeof(surfaceParams));
             surfaceParams.bUseAdvState = true;
@@ -4302,17 +4325,40 @@ MOS_STATUS CodechalEncHevcStateG9::SendMeSurfaces(
             uint8_t scaledIdx = params->ppRefList[refPicIdx]->ucScalingIdx;
             if (params->b32xMeInUse)
             {
-                refScaledSurface.OsResource = m_trackedBuf->Get32xDsSurface(scaledIdx)->OsResource;
+                MOS_SURFACE* p32xSurface = m_trackedBuf->Get32xDsSurface(scaledIdx);
+                if (p32xSurface != nullptr)
+                {
+                    refScaledSurface.OsResource = p32xSurface->OsResource;
+                }
+                else
+                {
+                    CODECHAL_ENCODE_ASSERTMESSAGE("NULL pointer of DsSurface");
+                }
             }
             else if (params->b16xMeInUse)
             {
-                refScaledSurface.OsResource = m_trackedBuf->Get16xDsSurface(scaledIdx)->OsResource;
+                MOS_SURFACE* p16xSurface = m_trackedBuf->Get16xDsSurface(scaledIdx);
+                if (p16xSurface != nullptr)
+                {
+                    refScaledSurface.OsResource = p16xSurface->OsResource;
+                }
+                else
+                {
+                    CODECHAL_ENCODE_ASSERTMESSAGE("NULL pointer of DsSurface");
+                }
             }
             else
             {
-                refScaledSurface.OsResource = m_trackedBuf->Get4xDsSurface(scaledIdx)->OsResource;
+                MOS_SURFACE* p4xSurface = m_trackedBuf->Get4xDsSurface(scaledIdx);
+                if (p4xSurface != nullptr)
+                {
+                    refScaledSurface.OsResource = p4xSurface->OsResource;
+                }
+                else
+                {
+                    CODECHAL_ENCODE_ASSERTMESSAGE("NULL pointer of DsSurface");
+                }
             }
-
             // L1 Reference picture Y - VME
             MOS_ZeroMemory(&surfaceParams, sizeof(surfaceParams));
             surfaceParams.bUseAdvState = true;

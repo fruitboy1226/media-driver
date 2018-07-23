@@ -28,6 +28,7 @@
 #ifndef  __MEDIA_LIBVA_CP_H__
 #define  __MEDIA_LIBVA_CP_H__
 #include "media_libva.h"
+#include "codechal_encoder_base.h"
 
 typedef struct _DDI_ENCODE_STATUS_REPORT_INFO *PDDI_ENCODE_STATUS_REPORT_INFO;
 class CodechalSetting;
@@ -39,7 +40,7 @@ public:
 
     ~DdiCpInterface();
 
-    void SetEncryptionType(uint32_t encryptionType, CODECHAL_FUNCTION *codecFunction);
+    void SetCpParams(uint32_t encryptionType, CodechalSetting *setting);
 
     VAStatus EndPictureCenc(
         VADriverContextP vaDrvCtx,
@@ -67,7 +68,7 @@ public:
 
     VAStatus StatusReportForHdcp2Buffer(
         DDI_CODEC_COM_BUFFER_MGR*       bufMgr,
-        PDDI_ENCODE_STATUS_REPORT_INFO  info);
+        void*              encodeStatusReport);
 
     void FreeHdcp2Buffer(DDI_CODEC_COM_BUFFER_MGR* bufMgr);
 
@@ -82,8 +83,6 @@ public:
 
     void ResetCpContext();
 
-    void SetCodechalSetting(CodechalSetting *codechalSetting);
-
     VAStatus RenderPictureForVp(
         VADriverContextP      vaDrvCtx,
         VAContextID           vpCtxID,
@@ -91,6 +90,11 @@ public:
         void                  *data);
 
     static bool CheckSupportedBufferForVp(VABufferType type);
+
+    VAStatus CreateCencDecode(
+        CodechalDecode              *decoder,
+        PMOS_CONTEXT                osContext,
+        CodechalSetting *           settings);
 };
 #endif
 

@@ -44,10 +44,6 @@
 #endif // MOS_MEDIASOLO_SUPPORTED
 #include "mos_solo_generic.h"
 
-#ifdef ANDROID
-#include <ufo/gralloc.h>
-#endif
-
 #ifndef ANDROID
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -874,6 +870,11 @@ void Linux_IncGpuCtxBufferTag(
     }
 }
 
+GMM_CLIENT_CONTEXT* Linux_GetGmmClientContext(PMOS_CONTEXT pOsContext)
+{
+    return pOsContext->pGmmClientContext;
+}
+
 //!
 //! \brief    Get GPU tag for the given GPU context from the status buffer
 //! \details  Get GPU tag for the given GPU context from the status buffer
@@ -890,9 +891,15 @@ uint32_t Linux_GetGPUTag(
 {
     MOS_OS_FUNCTION_ENTER;
 
+    if (pOsInterface == nullptr)
+    {
+        MOS_OS_ASSERTMESSAGE("invalid input parameters!");
+        return 0;
+    }
+
     if (pOsInterface->modularizedGpuCtxEnabled && !Mos_Solo_IsEnabled())
     {
-        if (pOsInterface == nullptr || pOsInterface->osContextPtr == nullptr)
+        if (pOsInterface->osContextPtr == nullptr)
         {
             MOS_OS_ASSERTMESSAGE("invalid input parameters!");
             return 0;
@@ -927,8 +934,7 @@ uint32_t Linux_GetGPUTag(
 
     MOS_GPU_STATUS_DATA  *pGPUStatusData = nullptr;
 
-    if ( pOsInterface == nullptr ||
-         pOsInterface->pOsContext == nullptr ||
+    if ( pOsInterface->pOsContext == nullptr ||
          pOsInterface->pOsContext->pGPUStatusBuffer == nullptr ||
          pOsInterface->pOsContext->pGPUStatusBuffer->pData == nullptr)
     {
@@ -1019,6 +1025,38 @@ uint32_t Linux_GetDmaBufID (PMOS_CONTEXT pOsContext )
 }
 
 //!
+//! \brief    Get Buffer Type
+//! \details  Returns the type of buffer, 1D, 2D or volume
+//! \param    PMOS_RESOURCE pOsResource
+//!           [in] Pointer to OS Resource
+//! \return   GFX resource Type
+//!
+MOS_GFXRES_TYPE GetResType(PMOS_RESOURCE pOsResource)
+{
+    GMM_RESOURCE_INFO *pGmmResourceInfo;
+    MOS_GFXRES_TYPE    ResType = MOS_GFXRES_INVALID;
+    GMM_RESOURCE_TYPE  GMMResType;
+
+    pGmmResourceInfo = (GMM_RESOURCE_INFO *)pOsResource->pGmmResInfo;
+    GMMResType = pGmmResourceInfo->GetResourceType();
+
+    switch (GMMResType)
+    {
+    case RESOURCE_BUFFER:
+        ResType = MOS_GFXRES_BUFFER;
+        break;
+    case RESOURCE_3D:
+        ResType = MOS_GFXRES_VOLUME;
+        break;
+    case RESOURCE_2D:
+        ResType = MOS_GFXRES_2D;
+        break;
+    default:
+        MOS_OS_ASSERT(false);
+    }
+    return ResType;
+}
+//!
 //! \brief    Set the DMA Buffer ID
 //! \details  Sets the buffer ID in perf data
 //! \param    PMOS_CONTEXT pOsContext
@@ -1079,8 +1117,8 @@ MOS_STATUS Linux_InitContext(
     if (nullptr == pContext ||
         nullptr == pOsDriverContext ||
         nullptr == pOsDriverContext->bufmgr ||
-        nullptr == pOsDriverContext->m_gpuContextMgr ||
-        nullptr == pOsDriverContext->m_cmdBufMgr ||
+        nullptr == pOsDriverContext->m_gpuContextMgr && modularizedGpuCtxEnabled ||
+        nullptr == pOsDriverContext->m_cmdBufMgr && modularizedGpuCtxEnabled ||
         0 >= pOsDriverContext->fd)
     {
         MOS_OS_ASSERT(false);
@@ -1260,6 +1298,7 @@ MOS_STATUS Linux_InitContext(
     pContext->pfnGetGpuCtxBufferTag      = Linux_GetGpuCtxBufferTag;
     pContext->pfnIncGpuCtxBufferTag      = Linux_IncGpuCtxBufferTag;
     pContext->GetGPUTag                  = Linux_GetGPUTag;
+    pContext->GetGmmClientContext        = Linux_GetGmmClientContext;
 
 finish:
     if (!modularizedGpuCtxEnabled)
@@ -1319,6 +1358,20 @@ MOS_GPU_CONTEXT Mos_Specific_GetGpuContext(
     PMOS_INTERFACE     pOsInterface)
 {
     return pOsInterface->CurrentGpuContextOrdinal;
+}
+
+//!
+//! \brief    Get current GMM client context
+//! \details  Get current GMM client context
+//! \param    PMOS_INTERFACE pOsInterface
+//!           [in] Pointer to OS Interface
+//! \return   GMM_CLIENT_CONTEXT
+//!           Return current GMM client context
+//!
+GMM_CLIENT_CONTEXT *Mos_Specific_GetGmmClientContext(
+    PMOS_INTERFACE pOsInterface)
+{
+    return pOsInterface->pOsContext->GetGmmClientContext(pOsInterface->pOsContext);
 }
 
 //!
@@ -1565,6 +1618,9 @@ GMM_RESOURCE_FORMAT Mos_Specific_ConvertMosFmtToGmmFmt(
         case Format_R8U         : return GMM_FORMAT_R8_UINT_TYPE;
         case Format_R16U        : return GMM_FORMAT_R16_UINT_TYPE;
         case Format_P010        : return GMM_FORMAT_P010_TYPE;
+        case Format_P016        : return GMM_FORMAT_P016_TYPE;
+        case Format_Y216        : return GMM_FORMAT_Y216_TYPE;
+        case Format_Y416        : return GMM_FORMAT_Y416_TYPE;
         case Format_P208        : return GMM_FORMAT_P208_TYPE;
         default                 : return GMM_FORMAT_INVALID;
     }
@@ -1622,6 +1678,7 @@ MOS_STATUS Mos_Specific_AllocateResource(
         return  MOS_STATUS_INVALID_PARAMETER;
     }
 
+    bufname                                = pParams->pBufName;
     pOsResource->bConvertedFromDDIResource = false;
 
     bool osContextValid = false;
@@ -1667,13 +1724,13 @@ MOS_STATUS Mos_Specific_AllocateResource(
 
         MosMemAllocCounterGfx = GraphicsResource::GetMemAllocCounterGfx();
         MOS_OS_CHK_NULL(pOsResource->pGmmResInfo);
-        MOS_MEMNINJA_GFX_ALLOC_MESSAGE(pOsResource->pGmmResInfo, (uint32_t)pOsResource->pGmmResInfo->GetSizeSurface(), functionName, filename, line);
+        MOS_MEMNINJA_GFX_ALLOC_MESSAGE(pOsResource->pGmmResInfo, bufname, pOsInterface->Component,
+            (uint32_t)pOsResource->pGmmResInfo->GetSizeSurface(), pParams->dwArraySize, functionName, filename, line);
 
         return eStatus;
     }
 
     caller              = nullptr;
-    bufname             = pParams->pBufName;
     tileformat_linux    = I915_TILING_NONE;
     iAlignedHeight      = iHeight = pParams->dwHeight;
     eStatus             = MOS_STATUS_SUCCESS;
@@ -1728,6 +1785,9 @@ MOS_STATUS Mos_Specific_AllocateResource(
         case Format_R16U:
         case Format_R8U:
         case Format_P010:
+        case Format_P016:
+        case Format_Y216:
+        case Format_Y416:
         case Format_P208:
             resourceType                = RESOURCE_2D;
             //indicate buffer Restriction is Planar surface restrictions.
@@ -1839,17 +1899,6 @@ MOS_STATUS Mos_Specific_AllocateResource(
     pOsResource->bMapped = false;
     if (bo)
     {
-#ifdef ANDROID
-        intel_ufo_bo_datatype_t datatype;
-
-        datatype.value = 0;
-        mos_bo_get_datatype(bo, &datatype.value);
-        datatype.compression_mode = (uint32_t)pParams->CompressionMode;
-        datatype.is_mmc_capable   = (uint32_t)GmmParams.Flags.Gpu.MMC;
-        datatype.compression_hint = INTEL_UFO_BUFFER_HINT_MMC_COMPRESSED;
-        mos_bo_set_datatype(bo, datatype.value);
-#endif
-
         pOsResource->Format       = pParams->Format;
         pOsResource->iWidth       = pParams->dwWidth;
         pOsResource->iHeight      = iHeight;
@@ -1868,7 +1917,8 @@ MOS_STATUS Mos_Specific_AllocateResource(
     }
 
     MosMemAllocCounterGfx++;
-    MOS_MEMNINJA_GFX_ALLOC_MESSAGE(pOsResource->pGmmResInfo, (uint32_t)pOsResource->pGmmResInfo->GetSizeSurface(), functionName, filename, line);
+    MOS_MEMNINJA_GFX_ALLOC_MESSAGE(pOsResource->pGmmResInfo, bufname, pOsInterface->Component,
+        (uint32_t)pOsResource->pGmmResInfo->GetSizeSurface(), pParams->dwArraySize, functionName, filename, line);
 
 finish:
     return eStatus;
@@ -1891,9 +1941,6 @@ MOS_STATUS Mos_Specific_GetResourceInfo(
     PMOS_RESOURCE               pOsResource,
     PMOS_SURFACE                pResDetails)
 {
-#ifdef ANDROID
-    intel_ufo_bo_datatype_t datatype;
-#endif
     GMM_RESOURCE_INFO       *pGmmResourceInfo;
     GMM_DISPLAY_FRAME       gmmChannel;
     GMM_REQ_OFFSET_INFO     reqInfo[3];
@@ -1920,37 +1967,19 @@ MOS_STATUS Mos_Specific_GetResourceInfo(
     pResDetails->dwPitch         = GFX_ULONG_CAST(pGmmResourceInfo->GetRenderPitch());
     pResDetails->dwDepth         = MOS_MAX(1, pGmmResourceInfo->GetBaseDepth());
     pResDetails->dwLockPitch     = GFX_ULONG_CAST(pGmmResourceInfo->GetRenderPitch());
-    if (GFX_GET_CURRENT_RENDERCORE(pGmmGlobalContext->GetPlatformInfo().Platform) < IGFX_GEN8_CORE)
+    if (GFX_GET_CURRENT_RENDERCORE(pOsInterface->pfnGetGmmClientContext(pOsInterface)->GetPlatformInfo().Platform) < IGFX_GEN8_CORE)
     {
         pResDetails->bArraySpacing = pGmmResourceInfo->IsArraySpacingSingleLod();
     }
-    if (GFX_GET_CURRENT_RENDERCORE(pGmmGlobalContext->GetPlatformInfo().Platform) >= IGFX_GEN9_CORE)
+    if (GFX_GET_CURRENT_RENDERCORE(pOsInterface->pfnGetGmmClientContext(pOsInterface)->GetPlatformInfo().Platform) >= IGFX_GEN9_CORE)
     {
         pResDetails->dwQPitch = pGmmResourceInfo->GetQPitch();
     }
 
-#ifdef ANDROID
-    if(pOsResource->bo)
-    {
-        datatype.value = 0;
-        mos_bo_get_datatype(pOsResource->bo, &datatype.value);
-        pResDetails->bCompressible   =
-            (datatype.is_mmc_capable && (datatype.compression_hint == INTEL_UFO_BUFFER_HINT_MMC_COMPRESSED)) ? true : false;
-        pResDetails->bIsCompressed   = datatype.compression_mode ? true : false;
-        pResDetails->CompressionMode = (MOS_RESOURCE_MMC_MODE)datatype.compression_mode;
-    }
-    else
-    {
-        pResDetails->bCompressible   = false;
-        pResDetails->bIsCompressed   = false;
-        pResDetails->CompressionMode = MOS_MMC_DISABLED;
-    }
-#else
     pResDetails->bCompressible   = GmmFlags.Gpu.MMC ?
         (pGmmResourceInfo->GetMmcHint(0) == GMM_MMC_HINT_ON) : false;
     pResDetails->bIsCompressed   = pGmmResourceInfo->IsMediaMemoryCompressed(0);
     pResDetails->CompressionMode = (MOS_RESOURCE_MMC_MODE)pGmmResourceInfo->GetMmcMode(0);
-#endif
 
     if (0 == pResDetails->dwPitch)
     {
@@ -2115,7 +2144,9 @@ void Mos_Specific_FreeResource(
         }
 #endif
         pOsResource->bo = nullptr;
-        if (nullptr != pOsResource->pGmmResInfo)
+        if (pOsResource->pGmmResInfo != nullptr && 
+            pOsInterface->pOsContext != nullptr &&
+            pOsInterface->pOsContext->pGmmClientContext != nullptr)
         {
             MosMemAllocCounterGfx--;
             MOS_MEMNINJA_GFX_FREE_MESSAGE(pOsResource->pGmmResInfo, functionName, filename, line);
@@ -3735,15 +3766,18 @@ MOS_STATUS Mos_Specific_CreateGpuContext(
         auto cmdBufMgr = pOsContextSpecific->GetCmdBufMgr();
         MOS_OS_CHK_NULL_RETURN(cmdBufMgr);
 
-        auto gpuContext = gpuContextMgr->CreateGpuContext(GpuNode, cmdBufMgr, mosGpuCxt);
-        MOS_OS_CHK_NULL_RETURN(gpuContext);
+        if (pOsContextSpecific->GetGpuContextHandle(mosGpuCxt) == MOS_GPU_CONTEXT_INVALID_HANDLE)
+        {
+            auto gpuContext = gpuContextMgr->CreateGpuContext(GpuNode, cmdBufMgr, mosGpuCxt);
+            MOS_OS_CHK_NULL_RETURN(gpuContext);
 
-        auto gpuContextSpecific  = static_cast<GpuContextSpecific *>(gpuContext);
-        MOS_OS_CHK_NULL_RETURN(gpuContextSpecific);
+            auto gpuContextSpecific  = static_cast<GpuContextSpecific *>(gpuContext);
+            MOS_OS_CHK_NULL_RETURN(gpuContextSpecific);
 
-        MOS_OS_CHK_STATUS_RETURN(gpuContextSpecific->Init(gpuContextMgr->GetOsContext()));
+            MOS_OS_CHK_STATUS_RETURN(gpuContextSpecific->Init(gpuContextMgr->GetOsContext()));
 
-        pOsContextSpecific->SetGpuContextHandle(mosGpuCxt, gpuContextSpecific->GetGpuContextHandle());
+            pOsContextSpecific->SetGpuContextHandle(mosGpuCxt, gpuContextSpecific->GetGpuContextHandle());
+        }
 
         return MOS_STATUS_SUCCESS;
     }
@@ -4057,6 +4091,9 @@ MOS_FORMAT Mos_Specific_FmtOsToMos(
         case FOURCC_RGBP             : return Format_RGBP;
         case FOURCC_BGRP             : return Format_BGRP;
         case FOURCC_P010             : return Format_P010;
+        case FOURCC_P016             : return Format_P016;
+        case FOURCC_Y216             : return Format_Y216;
+        case FOURCC_Y416             : return Format_Y416;
         default                      : return Format_Invalid;
     }
 }
@@ -4117,6 +4154,9 @@ MOS_OS_FORMAT Mos_Specific_FmtMosToOs(
     case Format_BGRP         : return (MOS_OS_FORMAT)FOURCC_BGRP;
     case Format_STMM         : return (MOS_OS_FORMAT)DDI_FORMAT_P8;
     case Format_P010         : return (MOS_OS_FORMAT)FOURCC_P010;
+    case Format_P016         : return (MOS_OS_FORMAT)FOURCC_P016;
+    case Format_Y216         : return (MOS_OS_FORMAT)FOURCC_Y216;
+    case Format_Y416         : return (MOS_OS_FORMAT)FOURCC_Y416;
     case Format_A16B16G16R16 : return (MOS_OS_FORMAT)DDI_FORMAT_A16B16G16R16;
     default                  : return (MOS_OS_FORMAT)DDI_FORMAT_UNKNOWN;
     }
@@ -4327,11 +4367,11 @@ uint32_t Mos_Specific_GetGpuStatusTag(
 {
     MOS_OS_FUNCTION_ENTER;
 
-    MOS_OS_CHK_NULL_RETURN(pOsInterface);
+    MOS_OS_ASSERT(pOsInterface);
 
     if (pOsInterface->modularizedGpuCtxEnabled && !Mos_Solo_IsEnabled())
     {
-        if (pOsInterface == nullptr || pOsInterface->osContextPtr == nullptr)
+        if (pOsInterface->osContextPtr == nullptr)
         {
             MOS_OS_ASSERTMESSAGE("invalid input parameters!");
             return 0;
@@ -4349,7 +4389,6 @@ uint32_t Mos_Specific_GetGpuStatusTag(
 
     PMOS_CONTEXT pOsContext;
 
-    MOS_OS_ASSERT(pOsInterface);
     MOS_OS_ASSERT(pOsInterface->pOsContext);
     //------------------------------------
 
@@ -4377,7 +4416,7 @@ void Mos_Specific_IncrementGpuStatusTag(
 
     if (pOsInterface->modularizedGpuCtxEnabled && !Mos_Solo_IsEnabled())
     {
-        if (pOsInterface == nullptr || pOsInterface->osContextPtr == nullptr)
+        if (pOsInterface->osContextPtr == nullptr)
         {
             MOS_OS_ASSERTMESSAGE("invalid input parameters!");
             return;
@@ -5035,24 +5074,12 @@ MOS_STATUS Mos_Specific_GetMemoryCompressionMode(
     PMOS_RESOURCE       pOsResource,
     PMOS_MEMCOMP_STATE  pResMmcMode)
 {
-#ifdef ANDROID
-    intel_ufo_bo_datatype_t datatype;
-#else
     PGMM_RESOURCE_INFO      pGmmResourceInfo;
-#endif
     MOS_STATUS              eStatus = MOS_STATUS_UNKNOWN;
     MOS_UNUSED(pOsInterface);
     MOS_OS_FUNCTION_ENTER;
-
     MOS_OS_CHK_NULL(pOsResource);
 
-#ifdef ANDROID
-    MOS_OS_CHK_NULL(pOsResource->bo);
-
-    datatype.value = 0;
-    mos_bo_get_datatype(pOsResource->bo, &datatype.value);
-    *pResMmcMode = (MOS_MEMCOMP_STATE)datatype.compression_mode;
-#else
     // Get Gmm resource info
     pGmmResourceInfo = (GMM_RESOURCE_INFO*)pOsResource->pGmmResInfo;
     MOS_OS_CHK_NULL(pGmmResourceInfo);
@@ -5070,7 +5097,6 @@ MOS_STATUS Mos_Specific_GetMemoryCompressionMode(
             *pResMmcMode = MOS_MEMCOMP_DISABLED;
             break;
     }
-#endif
 
     eStatus = MOS_STATUS_SUCCESS;
 
@@ -5095,27 +5121,13 @@ MOS_STATUS Mos_Specific_SetMemoryCompressionMode(
     PMOS_RESOURCE       pOsResource,
     MOS_MEMCOMP_STATE   ResMmcMode)
 {
-#ifdef ANDROID
-    intel_ufo_bo_datatype_t datatype;
-#else
     PGMM_RESOURCE_INFO      pGmmResourceInfo;
     GMM_RESOURCE_MMC_INFO   GmmResMmcMode = GMM_MMC_DISABLED;
-#endif
     MOS_STATUS              eStatus = MOS_STATUS_UNKNOWN;
     MOS_UNUSED(pOsInterface);
     MOS_OS_FUNCTION_ENTER;
-
     MOS_OS_CHK_NULL(pOsResource);
 
-#ifdef ANDROID
-    MOS_OS_CHK_NULL(pOsResource->bo);
-
-    datatype.value = 0;
-    mos_bo_get_datatype(pOsResource->bo, &datatype.value);
-
-    datatype.compression_mode = (uint32_t)ResMmcMode;
-    mos_bo_set_datatype(pOsResource->bo, datatype.value);
-#else
     // Get Gmm resource info
     pGmmResourceInfo = (GMM_RESOURCE_INFO*)pOsResource->pGmmResInfo;
     MOS_OS_CHK_NULL(pGmmResourceInfo);
@@ -5135,7 +5147,6 @@ MOS_STATUS Mos_Specific_SetMemoryCompressionMode(
     }
 
     pGmmResourceInfo->SetMmcMode(GmmResMmcMode, 0);
-#endif
 
     eStatus = MOS_STATUS_SUCCESS;
 
@@ -5160,34 +5171,19 @@ MOS_STATUS Mos_Specific_SetMemoryCompressionHint(
     PMOS_RESOURCE       pOsResource,
     int32_t             bHintOn)
 {
-#ifdef ANDROID
-    intel_ufo_bo_datatype_t datatype;
-#else
     PGMM_RESOURCE_INFO      pGmmResourceInfo;
     uint32_t                uiArrayIndex = 0;
-#endif
     MOS_STATUS              eStatus;
     MOS_UNUSED(pOsInterface);
     MOS_OS_FUNCTION_ENTER;
-
     eStatus = MOS_STATUS_UNKNOWN;
     MOS_OS_CHK_NULL(pOsResource);
 
-#ifdef ANDROID
-    MOS_OS_CHK_NULL(pOsResource->bo);
-
-    datatype.value = 0;
-    mos_bo_get_datatype(pOsResource->bo, &datatype.value);
-
-    datatype.compression_hint = (uint32_t) (bHintOn ? INTEL_UFO_BUFFER_HINT_MMC_COMPRESSED : INTEL_UFO_BUFFER_HINT_MMC_UNCOMPRESSED);
-    mos_bo_set_datatype(pOsResource->bo, datatype.value);
-#else
     // Get Gmm resource info
     pGmmResourceInfo = (GMM_RESOURCE_INFO*)pOsResource->pGmmResInfo;
     MOS_OS_CHK_NULL(pGmmResourceInfo);
 
     pGmmResourceInfo->SetMmcHint(bHintOn ? GMM_MMC_HINT_ON : GMM_MMC_HINT_OFF, uiArrayIndex);
-#endif
 
     eStatus = MOS_STATUS_SUCCESS;
 
@@ -5473,13 +5469,15 @@ finish:
 //! \details  Get the memory object for cache policy
 //! \param    MOS_HW_RESOURCE_DEF MosUsage
 //!           [in] HW resource
+//!           [in] Gmm client context
 //! \return   MEMORY_OBJECT_CONTROL_STATE
 //!           Return the memory object
 //!
 MEMORY_OBJECT_CONTROL_STATE Mos_Specific_CachePolicyGetMemoryObject(
-    MOS_HW_RESOURCE_DEF         MosUsage)
+    MOS_HW_RESOURCE_DEF         MosUsage,
+    GMM_CLIENT_CONTEXT          *pGmmClientContext)
 {
-    return Mos_CachePolicyGetMemoryObject(MosUsage);
+    return Mos_CachePolicyGetMemoryObject(MosUsage, pGmmClientContext);
 }
 
 //*-----------------------------------------------------------------------------
@@ -5693,6 +5691,7 @@ MOS_STATUS Mos_Specific_InitInterface(
     MOS_OS_CHK_NULL(pOsDriverContext);
 
     pOsInterface->modularizedGpuCtxEnabled    = true;
+    pOsInterface->veDefaultEnable             = false;
 
     // Create Linux OS Context
     pOsContext = (PMOS_OS_CONTEXT)MOS_AllocAndZeroMemory(sizeof(MOS_OS_CONTEXT));
@@ -5766,6 +5765,7 @@ MOS_STATUS Mos_Specific_InitInterface(
     pOsInterface->pfnGetGpuContext                          = Mos_Specific_GetGpuContext;
     pOsInterface->pfnSetEncodePakContext                    = Mos_Specific_SetEncodePakContext;
     pOsInterface->pfnSetEncodeEncContext                    = Mos_Specific_SetEncodeEncContext;
+    pOsInterface->pfnGetGmmClientContext                    = Mos_Specific_GetGmmClientContext;
 
     pOsInterface->pfnGetPlatform                            = Mos_Specific_GetPlatform;
     pOsInterface->pfnDestroy                                = Mos_Specific_Destroy;
@@ -5897,7 +5897,6 @@ MOS_STATUS Mos_Specific_InitInterface(
         MOS_OS_ASSERTMESSAGE("fail to create osCpInterface.");
         return MOS_STATUS_UNKNOWN;
     }
-    pOsInterface->pOsExt            = nullptr;
 
     // Check SKU table to detect if simulation environment (HAS) is enabled
     pSkuTable = pOsInterface->pfnGetSkuTable(pOsInterface);

@@ -225,6 +225,7 @@ MOS_STATUS GpuContextSpecific::GetCommandBuffer(
         if (m_cmdBufPool.size() < MAX_CMD_BUF_NUM)
         {
             cmdBuf = m_cmdBufMgr->PickupOneCmdBuf(m_commandBufferSize);
+            MOS_OS_CHK_NULL_RETURN(cmdBuf);
             MOS_OS_CHK_STATUS_RETURN(cmdBuf->BindToGpuContext(this));
             m_cmdBufPool.push_back(cmdBuf);
         }
@@ -237,7 +238,8 @@ MOS_STATUS GpuContextSpecific::GetCommandBuffer(
             m_cmdBufMgr->ReleaseCmdBuf(cmdBufOld);  // here just return old command buffer to available pool
 
             //pick up new comamnd buffer
-            cmdBuf         = m_cmdBufMgr->PickupOneCmdBuf(m_commandBufferSize);
+            cmdBuf = m_cmdBufMgr->PickupOneCmdBuf(m_commandBufferSize);
+            MOS_OS_CHK_NULL_RETURN(cmdBuf);
             MOS_OS_CHK_STATUS_RETURN(cmdBuf->BindToGpuContext(this));
             m_cmdBufPool[m_nextFetchIndex] = cmdBuf;
         }
@@ -428,6 +430,7 @@ MOS_STATUS GpuContextSpecific::SubmitCommandBuffer(
     uint32_t     addCb2   = 0xffffffff;
     MOS_STATUS   eStatus  = MOS_STATUS_SUCCESS;
     int32_t      ret      = 0;
+    PLATFORM     platform;
 
     // Command buffer object DRM pointer
     m_cmdBufFlushed = true;
@@ -437,10 +440,7 @@ MOS_STATUS GpuContextSpecific::SubmitCommandBuffer(
     for (uint32_t patchIndex = 0; patchIndex < m_currentNumPatchLocations; patchIndex++)
     {
         auto currentPatch = &m_patchLocationList[patchIndex];
-        if (nullptr == currentPatch)
-        {
-            MOS_OS_ASSERTMESSAGE("Unexpected, found null entry in patch list!");
-        }
+        MOS_OS_CHK_NULL_RETURN(currentPatch);
 
         auto allocationIndex = currentPatch->AllocationIndex;
         auto resourceOffset  = currentPatch->AllocationOffset;
@@ -556,8 +556,12 @@ MOS_STATUS GpuContextSpecific::SubmitCommandBuffer(
     {
         if (true == osInterface->osCpInterface->IsHMEnabled())
         {
-            cliprects     = (drm_clip_rect *)(&addCb2);
-            num_cliprects = sizeof(addCb2);
+            osInterface->pfnGetPlatform(osInterface,&platform);
+            if (platform.eProductFamily < IGFX_BROXTON)
+            {
+                cliprects     = (drm_clip_rect *)(&addCb2);
+                num_cliprects = sizeof(addCb2);
+            }
         }
     }
     else

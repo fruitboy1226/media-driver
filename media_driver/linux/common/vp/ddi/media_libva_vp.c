@@ -189,6 +189,21 @@ MOS_FORMAT VpGetFormatFromMediaFormat(DDI_MEDIA_FORMAT mf)
     case Media_Format_RGBP:
         format = Format_RGBP;
         break;
+    case Media_Format_Y210:
+        format = Format_Y210;
+        break;
+    case Media_Format_Y216:
+        format = Format_Y216;
+        break;
+    case Media_Format_Y410:
+        format = Format_Y410;
+        break;
+    case Media_Format_Y416:
+        format = Format_Y416;
+        break;
+    case Media_Format_AYUV:
+        format = Format_AYUV;
+        break;
     default:
         VP_DDI_ASSERTMESSAGE("ERROR media format to vphal format.");
         format = Format_Invalid;
@@ -753,7 +768,7 @@ DdiVp_SetProcPipelineParams(
     uSurfIndex          = 0;
     pOsInterface        = pVpCtx->pVpHal->GetOsInterface();
 
-    memset(&vpStateFlags,0,sizeof(vpStateFlags));
+    memset(&vpStateFlags, 0, sizeof(vpStateFlags));
 
     DDI_CHK_NULL(pMediaSrcSurf, "Null pMediaSrcSurf.", VA_STATUS_ERROR_INVALID_BUFFER);
     DDI_CHK_NULL(pOsInterface, "Null pOsInterface.", VA_STATUS_ERROR_INVALID_BUFFER);
@@ -1177,7 +1192,6 @@ VAStatus DdiVp_InitCtx(VADriverContextP pVaDrvCtx, PDDI_VP_CONTEXT pVpCtx)
     pVpCtx->MosDrvCtx.WaTable         = pMediaCtx->WaTable;
     pVpCtx->MosDrvCtx.gtSystemInfo    = *pMediaCtx->pGtSystemInfo;
     pVpCtx->MosDrvCtx.platform        = pMediaCtx->platform;
-
     pVpCtx->MosDrvCtx.ppMediaMemDecompState = &pMediaCtx->pMediaMemDecompState;
     pVpCtx->MosDrvCtx.pfnMemoryDecompress   = pMediaCtx->pfnMemoryDecompress;
     pVpCtx->MosDrvCtx.pPerfData             = (PERF_DATA*)MOS_AllocAndZeroMemory(sizeof(PERF_DATA));
@@ -1309,43 +1323,40 @@ DdiVp_InitVpHal(
     pVpHal              = nullptr;
 
     // Create VpHal state
-    if (pVpCtx->pVpHal == nullptr)
-    {
-        MOS_STATUS eStatus = MOS_STATUS_UNKNOWN;
-        pVpHal = VphalState::VphalStateFactory( nullptr, &(pVpCtx->MosDrvCtx), &eStatus);
+    MOS_STATUS eStatus = MOS_STATUS_UNKNOWN;
+    pVpHal = VphalState::VphalStateFactory( nullptr, &(pVpCtx->MosDrvCtx), &eStatus);
 
-        if (pVpHal && MOS_FAILED(eStatus))
+    if (pVpHal && MOS_FAILED(eStatus))
+    {
+        MOS_Delete(pVpHal);
+        pVpHal = nullptr;
+    }
+
+    if (!pVpHal)
+    {
+        VP_DDI_ASSERTMESSAGE("Failed to create vphal.");
+        MOS_FreeMemAndSetNull(pVpCtx);
+        return VA_STATUS_ERROR_ALLOCATION_FAILED;
+    }
+
+    if (nullptr != pVpHal)
+    {
+        VpHalSettings.maxPhases                = VP_SETTING_MAX_PHASES;
+        VpHalSettings.mediaStates              = VP_SETTING_MEDIA_STATES;
+        VpHalSettings.sameSampleThreshold      = VP_SETTING_SAME_SAMPLE_THRESHOLD;
+        VpHalSettings.disableDnDi              = false;
+
+        // Allocate resources (state heaps, resources, KDLL)
+        if (MOS_FAILED(pVpHal->Allocate(&VpHalSettings)))
         {
+            VP_DDI_ASSERTMESSAGE("Failed to allocate resources for vphal.");
             MOS_Delete(pVpHal);
             pVpHal = nullptr;
+            return vaStatus;
         }
-
-        if (!pVpHal)
-        {
-            VP_DDI_ASSERTMESSAGE("Failed to create vphal.");
-            MOS_FreeMemAndSetNull(pVpCtx);
-            return VA_STATUS_ERROR_ALLOCATION_FAILED;
-        }
-
-        if (nullptr != pVpHal)
-        {
-            VpHalSettings.maxPhases                = VP_SETTING_MAX_PHASES;
-            VpHalSettings.mediaStates              = VP_SETTING_MEDIA_STATES;
-            VpHalSettings.sameSampleThreshold      = VP_SETTING_SAME_SAMPLE_THRESHOLD;
-            VpHalSettings.disableDnDi              = false;
-
-            // Allocate resources (state heaps, resources, KDLL)
-            if (MOS_FAILED(pVpHal->Allocate(&VpHalSettings)))
-            {
-                VP_DDI_ASSERTMESSAGE("Failed to allocate resources for vphal.");
-                MOS_Delete(pVpHal);
-                pVpHal = nullptr;
-                return vaStatus;
-            }
-        }
-
-        pVpCtx->pVpHal  = pVpHal;
     }
+
+    pVpCtx->pVpHal  = pVpHal;
 
     return VA_STATUS_SUCCESS;
 }
@@ -1370,71 +1381,78 @@ VAStatus DdiVp_GetColorSpace(PVPHAL_SURFACE pVpHalSurf, VAProcColorStandardType 
     VP_DDI_FUNCTION_ENTER;
     
     // Convert VAProcColorStandardType to VPHAL_CSPACE
-    // Set colorspace by default to avoid application don't set ColorStandard
-    if (colorStandard == 0)
+    // When application set colorStandard as BT601/BT709 for RGB formats, driver will always force 
+    // to use sRGB for RGB formats since BT601/BT709 is very close to sRGB for RGB formats
+    if (IS_RGB_FORMAT(pVpHalSurf->Format))
     {
-        if (IS_RGB_FORMAT(pVpHalSurf->Format))
+        pVpHalSurf->ColorSpace = CSpace_sRGB;
+    }else
+    {
+        // Set colorspace by default to avoid application don't set ColorStandard
+        if (colorStandard == 0)
         {
-            pVpHalSurf->ColorSpace = CSpace_sRGB;
-        }
-        else
-        {
-            if ((pVpHalSurf->rcSrc.right - pVpHalSurf->rcSrc.left) <= 1280 && (pVpHalSurf->rcDst.bottom - pVpHalSurf->rcDst.top) <= 720)
+            if ((pVpHalSurf->rcSrc.right - pVpHalSurf->rcSrc.left) <= 1280 && (pVpHalSurf->rcSrc.bottom - pVpHalSurf->rcSrc.top) <= 720)
             {
                 pVpHalSurf->ColorSpace = CSpace_BT601;
             }//720p
-            else if ((pVpHalSurf->rcSrc.right - pVpHalSurf->rcSrc.left) <= 1920 && (pVpHalSurf->rcDst.bottom - pVpHalSurf->rcDst.top) <= 1080)
+            else if ((pVpHalSurf->rcSrc.right - pVpHalSurf->rcSrc.left) <= 1920 && (pVpHalSurf->rcSrc.bottom - pVpHalSurf->rcSrc.top) <= 1080)
             {
                 pVpHalSurf->ColorSpace = CSpace_BT709;
             }//1080p
             else
             {
-                pVpHalSurf->ColorSpace = CSpace_BT2020;
-            }//4K
-        }
-    }
-    else
-    {
-        switch (colorStandard)
-        {
-            case VAProcColorStandardBT709:
-#if (VA_MAJOR_VERSION < 1)
-                if (flag & VA_SOURCE_RANGE_FULL)
-#else
-                if (color_range == VA_SOURCE_RANGE_FULL)
-#endif
+                if (pVpHalSurf->Format == Format_P010)
                 {
-                    pVpHalSurf->ColorSpace = CSpace_BT709_FullRange;
+                    pVpHalSurf->ColorSpace = CSpace_BT2020;
                 }
                 else
                 {
                     pVpHalSurf->ColorSpace = CSpace_BT709;
                 }
-                break;
-            case VAProcColorStandardBT601:
+            }//4K
+        }
+        else
+        {
+            switch (colorStandard)
+            {
+                case VAProcColorStandardBT709:
 #if (VA_MAJOR_VERSION < 1)
-                if (flag & VA_SOURCE_RANGE_FULL)
+                    if (flag & VA_SOURCE_RANGE_FULL)
 #else
-                if (color_range == VA_SOURCE_RANGE_FULL)
+                    if (color_range == VA_SOURCE_RANGE_FULL)
 #endif
-                {
-                    pVpHalSurf->ColorSpace = CSpace_BT601_FullRange;
-                }
-                else
-                {
-                    pVpHalSurf->ColorSpace = CSpace_BT601;
-                }
-                break;
-            case VAProcColorStandardBT470M:
-            case VAProcColorStandardBT470BG:
-            case VAProcColorStandardSMPTE170M:
-            case VAProcColorStandardSMPTE240M:
-            case VAProcColorStandardGenericFilm:
-            default:
-                break;
+                    {
+                        pVpHalSurf->ColorSpace = CSpace_BT709_FullRange;
+                    }
+                    else
+                    {
+                        pVpHalSurf->ColorSpace = CSpace_BT709;
+                    }
+                    break;
+                case VAProcColorStandardBT601:
+#if (VA_MAJOR_VERSION < 1)
+                    if (flag & VA_SOURCE_RANGE_FULL)
+#else
+                    if (color_range == VA_SOURCE_RANGE_FULL)
+#endif
+                    {
+                        pVpHalSurf->ColorSpace = CSpace_BT601_FullRange;
+                    }
+                    else
+                    {
+                        pVpHalSurf->ColorSpace = CSpace_BT601;
+                    }
+                    break;
+                case VAProcColorStandardBT470M:
+                case VAProcColorStandardBT470BG:
+                case VAProcColorStandardSMPTE170M:
+                case VAProcColorStandardSMPTE240M:
+                case VAProcColorStandardGenericFilm:
+                default:
+                    break;
+            }
         }
     }
-
     DDI_CHK_CONDITION((pVpHalSurf->ColorSpace == CSpace_None), "Invalid output color standard", VA_STATUS_ERROR_INVALID_PARAMETER);
     DDI_CHK_CONDITION(((pVpHalSurf->ColorSpace == CSpace_BT2020) && (pVpHalSurf->Format != Format_P010)), "Invalid surface color standard", VA_STATUS_ERROR_INVALID_PARAMETER);
 
@@ -2328,29 +2346,28 @@ VAStatus DdiVp_ConvertSurface(
     PVPHAL_SURFACE              pTarget;
     PVPHAL_RENDER_PARAMS        pRenderParams;
     VPHAL_DENOISE_PARAMS        DenoiseParams;
-    DDI_VP_CONTEXT              vpContext;
+    PDDI_VP_CONTEXT             pVpCtx;
     MOS_STATUS                  eStatus;
     RECT                        Rect;
     RECT                        DstRect;
 
     VP_DDI_FUNCTION_ENTER;
     DDI_CHK_NULL(pVaDrvCtx, "Null pVaDrvCtx.", VA_STATUS_ERROR_INVALID_CONTEXT);
-    DDI_CHK_NULL(srcSurface,
-                    "Null srcSurface.",
-                    VA_STATUS_ERROR_INVALID_SURFACE);
+    DDI_CHK_NULL(srcSurface, "Null srcSurface.", VA_STATUS_ERROR_INVALID_SURFACE);
 
     vaStatus = VA_STATUS_SUCCESS;
     eStatus  = MOS_STATUS_INVALID_PARAMETER;
 
-    memset(&vpContext, 0, sizeof(vpContext));
-    DDI_CHK_NULL(pVaDrvCtx, "Null pVaDrvCtx.", VA_STATUS_ERROR_INVALID_CONTEXT);
-    vaStatus = DdiVp_InitCtx(pVaDrvCtx, &vpContext);
+    // init vpContext
+    pVpCtx = nullptr;
+    pVpCtx = (PDDI_VP_CONTEXT)MOS_AllocAndZeroMemory(sizeof(DDI_VP_CONTEXT));
+    DDI_CHK_NULL(pVpCtx, "Null pVpCtx.", VA_STATUS_ERROR_ALLOCATION_FAILED);
+
+    vaStatus = DdiVp_InitCtx(pVaDrvCtx, pVpCtx);
     DDI_CHK_RET(vaStatus, "Failed to initialize vp Context.");
 
-    pRenderParams = vpContext.pVpHalRenderParams;
-    DDI_CHK_NULL(pRenderParams,
-                    "Null pRenderParams.",
-                    VA_STATUS_ERROR_INVALID_PARAMETER);
+    pRenderParams = pVpCtx->pVpHalRenderParams;
+    DDI_CHK_NULL(pRenderParams, "Null pRenderParams.", VA_STATUS_ERROR_INVALID_PARAMETER);
     pSurface      =  pRenderParams->pSrc[0];
     DDI_CHK_NULL(pSurface, "Null pSurface.", VA_STATUS_ERROR_INVALID_SURFACE);
     pTarget       =  pRenderParams->pTarget[0];
@@ -2412,7 +2429,7 @@ VAStatus DdiVp_ConvertSurface(
 
     pRenderParams->uSrcCount        = 1;
 
-    eStatus   = vpContext.pVpHal->Render(vpContext.pVpHalRenderParams);
+    eStatus   = pVpCtx->pVpHal->Render(pVpCtx->pVpHalRenderParams);
     if (MOS_FAILED(eStatus))
     {
         VP_DDI_ASSERTMESSAGE("Failed to call render function.");
@@ -2422,7 +2439,7 @@ VAStatus DdiVp_ConvertSurface(
     memset(&(pTarget->OsResource), 0, sizeof(pTarget->OsResource));
 
 FINISH:
-    vaStatus |= DdiVp_DestroyVpHal(&vpContext);
+    vaStatus |= DdiVp_DestroyVpHal(pVpCtx);
     return vaStatus;
 }
 

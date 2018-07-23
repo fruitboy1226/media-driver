@@ -218,7 +218,8 @@ typedef struct _MHW_VDBOX_PIPE_MODE_SELECT_PARAMS
     bool                        bStreamOutEnabled;
     bool                        bShortFormatInUse;
     bool                        bVC1OddFrameHeight;
-    bool                        SSEEnabled;
+    bool                        pakFrmLvlStrmoutEnable;
+    bool                        pakPiplnStrmoutEnabled;
 
     bool                        bDeblockerStreamOutEnable;
     bool                        bPostDeblockOutEnable;
@@ -335,6 +336,7 @@ typedef struct _MHW_VDBOX_PIPE_BUF_ADDR_PARAMS
     uint32_t                    dwFrameStatStreamOutOffset;
     uint32_t                    dwVdencStatsStreamOutOffset;
     bool                        oneOnOneMapping = false;                 // Flag for indicating using 1:1 ref index mapping for vdenc
+    bool                        isLowDelayB = true;                      // Flag to indicate if it is LDB
 } MHW_VDBOX_PIPE_BUF_ADDR_PARAMS, *PMHW_VDBOX_PIPE_BUF_ADDR_PARAMS;
 
 typedef struct _MHW_VDBOX_IND_OBJ_BASE_ADDR_PARAMS

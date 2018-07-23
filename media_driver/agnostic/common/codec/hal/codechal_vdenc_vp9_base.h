@@ -262,7 +262,7 @@ class CodechalVdencVp9State : public CodechalEncoderState
 {
 public:
     //!
-    //! \struct    CompressedHeader
+    //! \struct    Compressed Header
     //! \brief     Compressed header
     //!
     struct CompressedHeader
@@ -1756,7 +1756,7 @@ public:
     MOS_RESOURCE                                m_resVdencIntraRowStoreScratchBuffer;  // Handle of intra row store surface
     MOS_RESOURCE                                m_resVdencBrcStatsBuffer;
     MOS_RESOURCE                                m_resVdencSegmentMapStreamOut;
-    MOS_RESOURCE                                m_resVdencPictureState2NdLevelBatchBufferRead[CODECHAL_VP9_ENCODE_RECYCLED_BUFFER_NUM];
+    MOS_RESOURCE                                m_resVdencPictureState2NdLevelBatchBufferRead[3][CODECHAL_VP9_ENCODE_RECYCLED_BUFFER_NUM];
     MOS_RESOURCE                                m_resVdencPictureState2NdLevelBatchBufferWrite[CODECHAL_VP9_ENCODE_RECYCLED_BUFFER_NUM];
     uint16_t                                    m_vdencPictureState2ndLevelBBIndex = 0;
     MOS_RESOURCE                                m_resVdencDysPictureState2NdLevelBatchBuffer;
@@ -1772,7 +1772,6 @@ public:
     uint8_t                                     m_chromaFormat;
     uint32_t                                    m_sizeOfSseSrcPixelRowStoreBufferPerLcu;
     PCODECHAL_CMD_INITIALIZER                   m_hucCmdInitializer = nullptr;
-    bool                                        m_hucCmdInitializerUsed = false;
 
 protected:
     //!
@@ -1781,6 +1780,25 @@ protected:
     CodechalVdencVp9State(CodechalHwInterface* hwInterface,
         CodechalDebugInterface* debugInterface,
         PCODECHAL_STANDARD_INFO standardInfo);
+
+    //!
+    //! \brief    Set pipe buffer address parameter
+    //! \details  Set pipe buffer address parameter in MMC case
+    //!
+    //! \param    [in,out] pipeBufAddrParams
+    //!           Pointer to PMHW_VDBOX_PIPE_BUF_ADDR_PARAMS
+    //! \param    [in] refSurface
+    //!           Pointer to reference surfaces
+    //! \param    [in] cmdBuffer
+    //!           Pointer to MOS command buffer
+    //!
+    //! \return   MOS_STATUS
+    //!           MOS_STATUS_SUCCESS if success, else fail reason
+    //!
+    virtual MOS_STATUS SetPipeBufAddr(
+        PMHW_VDBOX_PIPE_BUF_ADDR_PARAMS pipeBufAddrParams,
+        PMOS_SURFACE refSurface[3],
+        PMOS_COMMAND_BUFFER cmdBuffer);
 
 public:
     //!
@@ -2015,6 +2033,18 @@ public:
     //!             MOS_STATUS_SUCCESS if success, else fail reason 
     //!
     MOS_STATUS DysSrcFrame();
+
+    //!
+    //! \brief      Return if this surface has to be compressed
+    //!
+    //! \param      [in] isDownScaledSurface
+    //!             indicating if surface is downscaled
+    //!
+    //! \return     int32_t
+    //!             1 if to be compressed
+    //!             0 if not
+    //!
+    virtual bool IsToBeCompressed(bool isDownScaledSurface);
 
     //!
     //! \brief      Dys Reference frames

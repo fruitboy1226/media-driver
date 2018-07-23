@@ -74,6 +74,12 @@ MOS_STATUS CodechalEncodeCscDs::CheckRawColorFormat(MOS_FORMAT format)
     case Format_A8B8G8R8:
         m_colorRawSurface = cscColorABGR;
         m_cscRequireColor = 1;
+        m_cscUsingSfc = m_cscEnableSfc ? 1 : 0;
+        // Use EU for better performance in big resolution cases or TU1
+        if ((m_cscRawSurfWidth * m_cscRawSurfHeight > 1920 * 1088) || m_16xMeSupported)
+        {
+            m_cscUsingSfc = 0;
+        }
         m_threadTraverseSizeX = 3;    // for ABGR, thread space is 8x4
         break;
     case Format_P010:
@@ -1064,7 +1070,8 @@ MOS_STATUS CodechalEncodeCscDs::KernelFunctions(
 
     CODECHAL_ENCODE_CHK_NULL_RETURN(params);
 
-    bool useDsConvInCombinedKernel = m_useCommonKernel && !(CODECHAL_AVC == m_standard || CODECHAL_MPEG2 == m_standard);
+    bool useDsConvInCombinedKernel = m_useCommonKernel
+        && !(CODECHAL_AVC == m_standard || CODECHAL_MPEG2 == m_standard || CODECHAL_VP8 == m_standard);
 
     // call Ds+Copy
     if (m_cscFlag || useDsConvInCombinedKernel)

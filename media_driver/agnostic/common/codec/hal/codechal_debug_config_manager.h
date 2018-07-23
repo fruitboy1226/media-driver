@@ -37,6 +37,7 @@
 namespace CodechalDbgAttr
 {
 static const char *attrPicParams             = "PicParams";
+static const char *attrSubsetsParams         = "SubsetsParams";
 static const char *attrFeiPicParams          = "FeiPicParams";
 static const char *attrMvcExtPicParams       = "MvcExtPicParams";
 static const char *attrSegmentParams         = "SegmentParams";
@@ -93,6 +94,7 @@ static const char *attrStatusReport          = "StatusReport";
 static const char *attrPakObjStreamout       = "PakObjStreamOut";
 static const char *attrTileBasedStats        = "TileBasedStats";
 static const char *attrROISurface            = "ROIInput";
+static const char *attrHuCStitchDataBuf      = "HuCStitchDataBuffer";
 
 // MD5 attributes
 static const char *attrMD5HashEnable    = "MD5HasEnable";

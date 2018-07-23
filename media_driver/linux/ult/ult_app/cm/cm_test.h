@@ -28,6 +28,8 @@
 #include "mock_device.h"
 #include "../memory_leak_detector.h"
 
+#pragma GCC diagnostic ignored "-Wnonnull"
+
 class CmTest: public testing::Test
 {
 public:

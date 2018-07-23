@@ -38,7 +38,53 @@
 #include <memory>
 #include <string>
 #include <vector>
-#endif
+#include <stdint.h>
+#include <fstream>
+#include <string>
+#include <vector>
+#include <map>
+
+class PerfUtility
+{
+public:
+    struct Tick
+    {
+        double freq;
+        int64_t start;
+        int64_t stop;
+        double time;
+    };
+    struct PerfInfo
+    {
+        uint32_t count;
+        double avg;
+        double max;
+        double min;
+    };
+
+public:
+    PerfUtility();
+    ~PerfUtility();
+
+    void startTick(std::string tag);
+    void stopTick(std::string tag);
+    void savePerfData();
+
+private:
+    void printPerfSummary();
+    void printPerfDetails();
+    void printHeader(std::ofstream& fout);
+    void printBody(std::ofstream& fout);
+    void printFooter(std::ofstream& fout);
+    std::string formatPerfData(std::string tag, std::vector<Tick>& record);
+    void getPerfInfo(std::vector<Tick>& record, PerfInfo* info);
+    std::string getDashString(uint32_t num);
+
+private:
+    std::map<std::string, std::vector<Tick>*> records;
+};
+
+#endif // __cplusplus
 
 #ifndef __MOS_USER_FEATURE_WA_
 #define  __MOS_USER_FEATURE_WA_
@@ -94,24 +140,25 @@ extern int32_t MosMemAllocCounterGfx;
 extern uint8_t MosUltFlag;
 
 //! Helper Macros for MEMNINJA debug messages
-#define MOS_MEMNINJA_ALLOC_MESSAGE(ptr, size, functionName, filename, line)                                 \
-    MOS_OS_VERBOSEMESSAGE(                                                                                  \
-        "MemNinjaSysAlloc: MemNinjaCounter = %d, memPtr = 0x%016llx, size = %d, functionName = \"%s\", "    \
+#define MOS_MEMNINJA_ALLOC_MESSAGE(ptr, size, functionName, filename, line)                                    \
+    MOS_OS_VERBOSEMESSAGE(                                                                                     \
+        "MemNinjaSysAlloc: MemNinjaCounter = %d, memPtr = %p, size = %d, functionName = \"%s\", "              \
         "filename = \"%s\", line = %d/", MosMemAllocCounter, ptr, size, functionName, filename, line)
 
-#define MOS_MEMNINJA_FREE_MESSAGE(ptr, functionName, filename, line)                                        \
-    MOS_OS_VERBOSEMESSAGE(                                                                                  \
-       "MemNinjaSysFree: MemNinjaCounter = %d, memPtr = 0x%016llx, functionName = \"%s\", "                 \
+#define MOS_MEMNINJA_FREE_MESSAGE(ptr, functionName, filename, line)                                           \
+    MOS_OS_VERBOSEMESSAGE(                                                                                     \
+       "MemNinjaSysFree: MemNinjaCounter = %d, memPtr = %p, functionName = \"%s\", "                           \
        "filename = \"%s\", line = %d/", MosMemAllocCounter, ptr, functionName, filename, line)
 
-#define MOS_MEMNINJA_GFX_ALLOC_MESSAGE(ptr, size, functionName, filename, line)                             \
-    MOS_OS_VERBOSEMESSAGE(                                                                                  \
-        "MemNinjaGfxAlloc: MemNinjaCounterGfx = %d, memPtr = 0x%016llx, size = %d, functionName = \"%s\", " \
-        "filename = \"%s\", line = %d/", MosMemAllocCounterGfx, ptr, size, functionName, filename, line)
+#define MOS_MEMNINJA_GFX_ALLOC_MESSAGE(ptr, bufName, component, size, arraySize, functionName, filename, line) \
+    MOS_OS_VERBOSEMESSAGE(                                                                                     \
+        "MemNinjaGfxAlloc: MemNinjaCounterGfx = %d, memPtr = %p, bufName = %s, component = %d, size = %d,"     \
+        "arraySize = %d, functionName = \"%s\", filename = \"%s\", line = %d/", MosMemAllocCounterGfx, ptr,    \
+        bufName, component, size, arraySize, functionName, filename, line)
 
-#define MOS_MEMNINJA_GFX_FREE_MESSAGE(ptr, functionName, filename, line)                                    \
-    MOS_OS_VERBOSEMESSAGE(                                                                                  \
-        "MemNinjaGfxFree: MemNinjaCounterGfx = %d, memPtr = 0x%016llx, functionName = \"%s\", "             \
+#define MOS_MEMNINJA_GFX_FREE_MESSAGE(ptr, functionName, filename, line)                                       \
+    MOS_OS_VERBOSEMESSAGE(                                                                                     \
+        "MemNinjaGfxFree: MemNinjaCounterGfx = %d, memPtr = %p, functionName = \"%s\", "                       \
         "filename = \"%s\", line = %d/", MosMemAllocCounterGfx, ptr, functionName, filename, line)
 
 //!
@@ -219,6 +266,8 @@ typedef enum _MOS_USER_FEATURE_VALUE_ID
     __MEDIA_USER_FEATURE_VALUE_HEVC_ENCODE_ME_ENABLE_ID,
     __MEDIA_USER_FEATURE_VALUE_HEVC_ENCODE_16xME_ENABLE_ID,
     __MEDIA_USER_FEATURE_VALUE_HEVC_ENCODE_32xME_ENABLE_ID,
+    __MEDIA_USER_FEATURE_VALUE_HEVC_VDENC_16xME_ENABLE_ID,
+    __MEDIA_USER_FEATURE_VALUE_HEVC_VDENC_32xME_ENABLE_ID,
     __MEDIA_USER_FEATURE_VALUE_HEVC_ENCODE_26Z_ENABLE_ID,
     __MEDIA_USER_FEATURE_VALUE_HEVC_ENCODE_REGION_NUMBER_ID,
     __MEDIA_USER_FEATURE_VALUE_HEVC_ENCODE_NUM_B_KERNEL_SPLIT,
@@ -245,6 +294,7 @@ typedef enum _MOS_USER_FEATURE_VALUE_ID
     __MEDIA_USER_FEATURE_VALUE_ENCODE_MMC_ENABLE_ID,
     __MEDIA_USER_FEATURE_VALUE_CODEC_MMC_IN_USE_ID,
     __MEDIA_USER_FEATURE_VALUE_DECODE_MMC_IN_USE_ID,
+    __MEDIA_USER_FEATURE_VALUE_DECODE_HISTOGRAM_FROM_VEBOX_ID,
     __MEDIA_USER_FEATURE_VALUE_DECODE_EXTENDED_MMC_IN_USE_ID,
     __MEDIA_USER_FEATURE_VALUE_ENCODE_MMC_IN_USE_ID,
     __MEDIA_USER_FEATURE_VALUE_ENCODE_EXTENDED_MMC_IN_USE_ID,
@@ -317,6 +367,9 @@ typedef enum _MOS_USER_FEATURE_VALUE_ID
     __MEDIA_USER_FEATURE_VALUE_CODECHAL_RDOQ_INTRA_TU_OVERRIDE_ID,
     __MEDIA_USER_FEATURE_VALUE_CODECHAL_RDOQ_INTRA_TU_DISABLE_ID,
     __MEDIA_USER_FEATURE_VALUE_CODECHAL_RDOQ_INTRA_TU_THRESHOLD_ID,
+    __MEDIA_USER_FEATURE_VALUE_CODECHAL_ENABLE_FAKE_HEADER_SIZE_ID,
+    __MEDIA_USER_FEATURE_VALUE_CODECHAL_FAKE_IFRAME_HEADER_SIZE_ID,
+    __MEDIA_USER_FEATURE_VALUE_CODECHAL_FAKE_PBFRAME_HEADER_SIZE_ID,
 
 #endif // (_DEBUG || _RELEASE_INTERNAL)
     __MEDIA_USER_FEATURE_VALUE_STATUS_REPORTING_ENABLE_ID,
@@ -370,6 +423,8 @@ typedef enum _MOS_USER_FEATURE_VALUE_ID
     __MEDIA_USER_FEATURE_VALUE_MDF_SURFACE_DUMP_ENABLE_ID,
     __MEDIA_USER_FEATURE_VALUE_MDF_EMU_MODE_ENABLE_ID,
     __MEDIA_USER_FEATURE_ENABLE_RENDER_ENGINE_MMC_ID,
+    __VPHAL_VEBOX_OUTPUTPIPE_MODE_ID,
+    __VPHAL_VEBOX_FEATURE_INUSE_ID,
     __VPHAL_RNDR_SSD_CONTROL_ID,
     __VPHAL_RNDR_SCOREBOARD_CONTROL_ID,
     __VPHAL_RNDR_CMFC_CONTROL_ID,
@@ -409,6 +464,35 @@ typedef enum _MOS_USER_FEATURE_VALUE_ID
     __MOS_USER_FEATURE_KEY_XML_AUTOGEN_ID,
     __MOS_USER_FEATURE_KEY_XML_FILEPATH_ID,
     __MOS_USER_FEATURE_KEY_XML_DUMP_GROUPS_ID,
+    __MEDIA_USER_FEATURE_VALUE_FORCE_VEBOX_ID,
+    __MEDIA_USER_FEATURE_VALUE_ENABLE_VEBOX_SCALABILITY_MODE_ID,
+    __MEDIA_USER_FEATURE_VALUE_VEBOX_SPLIT_RATIO_ID,
+    __MEDIA_USER_FEATURE_VALUE_HCP_DECODE_MODE_SWITCH_THRESHOLD1_ID,
+    __MEDIA_USER_FEATURE_VALUE_HCP_DECODE_MODE_SWITCH_THRESHOLD2_ID,
+    __MEDIA_USER_FEATURE_VALUE_HEVC_ENCODE_ENABLE_VE_DEBUG_OVERRIDE,
+    __MEDIA_USER_FEATURE_VALUE_HEVC_ENCODE_ENABLE_HW_SEMAPHORE,
+    __MEDIA_USER_FEATURE_VALUE_HEVC_ENCODE_ENABLE_VDBOX_HW_SEMAPHORE,
+    __MEDIA_USER_FEATURE_VALUE_HEVC_ENCODE_ENABLE_HW_STITCH,
+    __MEDIA_USER_FEATURE_VALUE_HEVC_ENCODE_SUBTHREAD_NUM_ID,
+    __MEDIA_USER_FEATURE_VALUE_HEVC_ENCODE_PAK_ONLY_ID,
+    __MEDIA_USER_FEATURE_VALUE_HEVC_VME_ENCODE_SSE_ENABLE_ID,
+    __MEDIA_USER_FEATURE_VALUE_ENCODE_DISABLE_SCALABILITY,
+    __MEDIA_USER_FEATURE_VALUE_HEVC_ENCODE_RDOQ_PERF_DISABLE_ID,
+    __MEDIA_USER_FEATURE_VALUE_WATCHDOG_TIMER_THRESHOLD,
+    __MEDIA_USER_FEATURE_VALUE_ENABLE_DECODE_VIRTUAL_ENGINE_ID,
+    __MEDIA_USER_FEATURE_VALUE_ENABLE_DECODE_VE_CTXSCHEDULING_ID,
+    __MEDIA_USER_FEATURE_VALUE_ENABLE_ENCODE_VIRTUAL_ENGINE_ID,
+    __MEDIA_USER_FEATURE_VALUE_ENABLE_ENCODE_VE_CTXSCHEDULING_ID,
+    __MEDIA_USER_FEATURE_VALUE_ENABLE_VE_DEBUG_OVERRIDE_ID,
+    __MEDIA_USER_FEATURE_VALUE_ENABLE_HCP_SCALABILITY_DECODE_ID,
+    __MEDIA_USER_FEATURE_VALUE_HCP_DECODE_ALWAYS_FRAME_SPLIT_ID,
+    __MEDIA_USER_FEATURE_VALUE_SCALABILITY_OVERRIDE_SPLIT_WIDTH_IN_MINCB,
+    __MEDIA_USER_FEATURE_VALUE_SCALABILITY_FE_SEPARATE_SUBMISSION_ENABLED_ID,
+    __MEDIA_USER_FEATURE_VALUE_SCALABILITY_FE_SEPARATE_SUBMISSION_IN_USE_ID,
+    __MEDIA_USER_FEATURE_VALUE_HEVC_VME_BRC_LTR_ENABLE_ID,
+    __MEDIA_USER_FEATURE_VALUE_HEVC_VME_BRC_LTR_INTERVAL_ID,
+    __MEDIA_USER_FEATURE_VALUE_HEVC_VME_FORCE_SCALABILITY_ID,
+    __MEDIA_USER_FEATURE_VALUE_HCP_DECODE_BE_SEMA_RESET_DELAY_ID,
     __MOS_USER_FEATURE_KEY_MAX_ID,
 } MOS_USER_FEATURE_VALUE_ID;
 

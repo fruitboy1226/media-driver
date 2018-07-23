@@ -666,6 +666,7 @@ int32_t CmSurfaceManager::GetFormatSize(CM_SURFACE_FORMAT format,uint32_t &sizeP
         case CM_SURFACE_FORMAT_400P:
         case CM_SURFACE_FORMAT_P208:
         case CM_SURFACE_FORMAT_BUFFER_2D:
+        case CM_SURFACE_FORMAT_R8_UNORM:
             sizePerPixel = 1;
             break;
 
@@ -1583,6 +1584,12 @@ int32_t CmSurfaceManager::DestroySurface( CmSurfaceVme* & vmeSurface )
 //*-----------------------------------------------------------------------------
 int32_t CmSurfaceManager::GetSurface( const uint32_t index, CmSurface* & surface )
 {
+    if( index == CM_NULL_SURFACE)
+    {
+        surface = nullptr;
+        return CM_FAILURE;
+    }
+
     if( index < m_surfaceArraySize )
     {
         surface = m_surfaceArray[ index ];
@@ -1713,6 +1720,7 @@ int32_t CmSurfaceManager::GetPixelBytesAndHeight(uint32_t width, uint32_t height
         case CM_SURFACE_FORMAT_AI44:
         case CM_SURFACE_FORMAT_400P:
         case CM_SURFACE_FORMAT_BUFFER_2D:
+        case CM_SURFACE_FORMAT_R8_UNORM:
             sizePerPixel = 1;
             break;
 

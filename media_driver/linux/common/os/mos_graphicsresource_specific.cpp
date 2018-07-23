@@ -26,9 +26,6 @@
 
 #include "mos_defs.h"
 #include "mos_util_debug.h"
-#ifdef ANDROID
-#include <ufo/gralloc.h>
-#endif
 
 #include "mos_graphicsresource_specific.h"
 #include "mos_context_specific.h"
@@ -98,6 +95,9 @@ GMM_RESOURCE_FORMAT GraphicsResourceSpecific::ConvertMosFmtToGmmFmt(MOS_FORMAT f
         case Format_R8U         : return GMM_FORMAT_R8_UINT_TYPE;
         case Format_R16U        : return GMM_FORMAT_R16_UINT_TYPE;
         case Format_P010        : return GMM_FORMAT_P010_TYPE;
+        case Format_P016        : return GMM_FORMAT_P016_TYPE;
+        case Format_Y216        : return GMM_FORMAT_Y216_TYPE;
+        case Format_Y416        : return GMM_FORMAT_Y416_TYPE;
         case Format_P208        : return GMM_FORMAT_P208_TYPE;
         case Format_A16B16G16R16: return GMM_FORMAT_R16G16B16A16_UNORM_TYPE;
         default                 : return GMM_FORMAT_INVALID;
@@ -198,7 +198,7 @@ MOS_STATUS GraphicsResourceSpecific::Allocate(OsContext* osContextPtr, CreatePar
             return MOS_STATUS_UNKNOWN;
         }
 
-        gmmParams.ExistingSysMemSize = GmmResGetRenderSize(tmpGmmResInfoPtr);
+        gmmParams.ExistingSysMemSize = GFX_ULONG_CAST(tmpGmmResInfoPtr->GetSizeSurface());
         gmmParams.pExistingSysMem = (GMM_VOIDPTR64)params.m_pSystemMemory;
         gmmParams.NoGfxMemory = false;
         gmmParams.Flags.Info.ExistingSysMem = true;
@@ -318,27 +318,10 @@ MOS_STATUS GraphicsResourceSpecific::Allocate(OsContext* osContextPtr, CreatePar
         m_size      = (uint32_t)gmmResourceInfoPtr->GetSizeSurface();
         m_tileType  = tileformat;
 
-#ifdef ANDROID
-        intel_ufo_bo_datatype_t datatype;
-
-        datatype.value = 0;
-        mos_bo_get_datatype(boPtr, &datatype.value);
-        datatype.compression_mode = (uint32_t)params.m_compressionMode;
-        datatype.is_mmc_capable   = (uint32_t)gmmParams.Flags.Gpu.MMC;
-        datatype.compression_hint = INTEL_UFO_BUFFER_HINT_MMC_COMPRESSED;
-        mos_bo_set_datatype(boPtr, datatype.value);
-
-        datatype.value = 0;
-        mos_bo_get_datatype(boPtr, &datatype.value);
-        m_compressible    = (datatype.is_mmc_capable && (datatype.compression_hint == INTEL_UFO_BUFFER_HINT_MMC_COMPRESSED));
-        m_isCompressed    = datatype.compression_mode ? true : false;
-        m_compressionMode = (MOS_RESOURCE_MMC_MODE)datatype.compression_mode;
-#else
         m_compressible    = gmmParams.Flags.Gpu.MMC ?
             (gmmResourceInfoPtr->GetMmcHint(0) == GMM_MMC_HINT_ON) : false;
         m_isCompressed    = gmmResourceInfoPtr->IsMediaMemoryCompressed(0);
         m_compressionMode = (MOS_RESOURCE_MMC_MODE)gmmResourceInfoPtr->GetMmcMode(0);
-#endif
 
         MOS_OS_VERBOSEMESSAGE("Alloc %7d bytes (%d x %d resource).",bufSize, params.m_width, bufHeight);
     }

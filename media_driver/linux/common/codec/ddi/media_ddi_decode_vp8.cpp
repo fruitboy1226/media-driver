@@ -82,10 +82,11 @@ VAStatus DdiDecodeVP8::ParseSliceParams(
     uint8_t num_token_partitions;
     num_token_partitions                = slcParam->num_of_partitions - 1;
     picParams->CodedCoeffTokenPartition = (num_token_partitions != 8) ? (num_token_partitions >> 1) : 3;
-    //macroblock_offset is in unit of bit.
-    picParams->uiFirstMbByteOffset = slcParam->slice_data_offset + slcParam->macroblock_offset >> 3;
+    //macroblock_offset is in unit of bit.it should be always the next byte, the byte is divided to two parts
+    //used bits and remaining bits, if used bits == 8, uiFirstMbByteOffset should add 1, so use 8 to do the ceil operator
+    picParams->uiFirstMbByteOffset = slcParam->slice_data_offset + ((slcParam->macroblock_offset + 8) >> 3);
 
-    memcpy(picParams->uiPartitionSize, slcParam->partition_size, sizeof(picParams->uiPartitionSize));
+    memcpy_s(picParams->uiPartitionSize, sizeof(picParams->uiPartitionSize), slcParam->partition_size, sizeof(picParams->uiPartitionSize));
 
     //partition 0 size in command buffer includes the one byte in bool decoder if remaining bits of bool decoder is not zero.
     picParams->uiPartitionSize[0] += (slcParam->macroblock_offset & 0x7) ? 1 : 0;
@@ -222,13 +223,15 @@ VAStatus DdiDecodeVP8::ParsePicParams(
     codecPicParams->ucUvModeProbs[2]            = picParam->uv_mode_probs[2];
     if (codecPicParams->ucMvUpdateProb[0] && picParam->mv_probs[0])
     {
-        memcpy(codecPicParams->ucMvUpdateProb[0],
+        memcpy_s(codecPicParams->ucMvUpdateProb[0],
+            sizeof(codecPicParams->ucMvUpdateProb[0]),
             picParam->mv_probs[0],
             sizeof(codecPicParams->ucMvUpdateProb[0]));
     }
     if (codecPicParams->ucMvUpdateProb[1] && picParam->mv_probs[1])
     {
-        memcpy(codecPicParams->ucMvUpdateProb[1],
+        memcpy_s(codecPicParams->ucMvUpdateProb[1],
+            sizeof(codecPicParams->ucMvUpdateProb[1]),
             picParam->mv_probs[1],
             sizeof(codecPicParams->ucMvUpdateProb[1]));
     }
@@ -541,7 +544,7 @@ VAStatus DdiDecodeVP8::CodecHalInit(
     MOS_CONTEXT *mosCtx   = (MOS_CONTEXT *)ptr;
 
     CODECHAL_FUNCTION codecFunction = CODECHAL_FUNCTION_DECODE;
-    m_ddiDecodeCtx->pCpDdiInterface->SetEncryptionType(m_ddiDecodeAttr->uiEncryptionType, &codecFunction);
+    m_ddiDecodeCtx->pCpDdiInterface->SetCpParams(m_ddiDecodeAttr->uiEncryptionType, m_codechalSettings);
 
     CODECHAL_STANDARD_INFO standardInfo;
     memset(&standardInfo, 0, sizeof(standardInfo));

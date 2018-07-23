@@ -302,7 +302,7 @@ public:
     //!           VA_STATUS_SUCCESS if success
     //!           VA_STATUS_ERROR_MAX_NUM_EXCEEDED if size of attribList is too small
     //!
-    VAStatus QuerySurfaceAttributes(
+    virtual VAStatus QuerySurfaceAttributes(
             VAConfigID configId,
             VASurfaceAttrib *attribList,
             uint32_t *numAttribs);
@@ -395,7 +395,7 @@ public:
     //! \return   True if the profile is a HEVC profile
     //!           False if the profile isn't a HEVC profile
     //!
-    static bool IsHevcProfile(VAProfile profile);
+    virtual bool IsHevcProfile(VAProfile profile);
 
     //!
     //! \brief    Check if the give profile is VP8 
@@ -475,7 +475,7 @@ public:
     //!
     //! \return   Codehal mode: decode codec mode 
     //!
-    CODECHAL_MODE GetDecodeCodecMode(VAProfile profile);
+    virtual CODECHAL_MODE GetDecodeCodecMode(VAProfile profile);
 
     //!
     //! \brief    Return the decode codec key for given profile 
@@ -985,27 +985,7 @@ protected:
     //! \return   VAStatus 
     //!           VA_STATUS_SUCCESS if success
     //!
-    VAStatus CreateDecAttributes(
-            VAProfile profile,
-            VAEntrypoint entrypoint,
-            AttribMap **attributeList);
-
-    //!
-    //! \brief    Create and intialize an attribute array give Vp profile and entrypoint
-    //!
-    //! \param    [in] profile
-    //!           VA profile
-    //!
-    //! \param    [in] entrypoint
-    //!           VA entrypoint
-    //!
-    //! \param    [in,out] attributeList
-    //!           Pointer to a pointer of AttribMap that will be created
-    //!
-    //! \return   VAStatus
-    //!           VA_STATUS_SUCCESS if success
-    //!
-    VAStatus CreateVpAttributes(
+    virtual VAStatus CreateDecAttributes(
             VAProfile profile,
             VAEntrypoint entrypoint,
             AttribMap **attributeList);
@@ -1073,7 +1053,7 @@ protected:
     //!
     //! \brief    Initialize HEVC decode profiles, entrypoints and attributes
     //!
-    VAStatus LoadHevcDecProfileEntrypoints();
+    virtual VAStatus LoadHevcDecProfileEntrypoints();
 
     //!
     //! \brief    Initialize HEVC decode profiles, entrypoints and attributes for specified hevc profile
@@ -1089,6 +1069,11 @@ protected:
     //! \brief    Initialize none profiles, entrypoints and attributes
     //!
     VAStatus LoadNoneProfileEntrypoints();
+
+    //!
+    //! \brief    Initialize Advanced decode profiles, entrypoints and attributes
+    //!
+    virtual VAStatus LoadAdvancedDecProfileEntrypoints();
 
     //!
     //! \brief    Initialize encode/decode/vp profiles, entrypoints and attributes
@@ -1262,28 +1247,5 @@ protected:
             VAProfile profile,
             VAEntrypoint entrypoint,
             VAConfigAttrib* attrib);
-    //!
-    //! \brief    Check the encode attribute list  according to profile and entrypoint
-    //!
-    //! \param    [in] profile
-    //!           VAProfile
-    //!
-    //! \param    [in] entrypoint
-    //!           VAEntrypoint
-    //!
-    //! \param    [in] attrib
-    //!           Pointer to a pointer of VAConfigAttrib
-    //!
-    //! \param    [in] numAttribs
-    //!           number of of VAConfigAttrib
-    //!
-    //! \return   VAStatus
-    //!           VA_STATUS_SUCCESS if success
-    //!
-    VAStatus CheckAttribList(
-            VAProfile profile,
-            VAEntrypoint entrypoint,
-            VAConfigAttrib* attrib,
-            int32_t numAttribs);
 };
 #endif
